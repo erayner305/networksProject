@@ -3,6 +3,7 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include <string>
 
 int SEGMENT_SIZE = 512;
 int CHECKSUM_SIZE = 4;
@@ -81,6 +82,7 @@ void generate_packet_num(int packet_num, char packet_num_buffer[]) {
     }
 }
 
+
 void generate_checksum(char data_buffer[], char checksum_buffer[]) {
     uint32_t sum = 0;
     for(int i = 0; i < DATA_SIZE; i++) {
@@ -88,7 +90,9 @@ void generate_checksum(char data_buffer[], char checksum_buffer[]) {
     }
     std::cout << sum << std::endl;
     int shift_value = 16;
-    for (int i = 0; i < 8; i++) { 
-        checksum_buffer[i] = (sum >> (shift_value -= 4)) & 0xFF; 
+    for (int i = 0; i < 4; i++) { 
+        checksum_buffer[i] = (sum >> (shift_value -= 4)) & 0xFF;
+        std::cout << "shifted: " << ((sum >> (shift_value -= 4)) & 0xFF) << std::endl;
+        std::cout << "array: " << (uint)checksum_buffer[i] << std::endl;
     }
 }
