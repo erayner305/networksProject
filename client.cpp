@@ -77,6 +77,7 @@ void empty_buffer(char buffer[]) {
 
 int gremlins(char buffer[], double corruptionChance, double lossChance){
     double randomNum;
+    int randomByte;
     srand(time(NULL));
 
     //Error Checking.
@@ -91,15 +92,18 @@ int gremlins(char buffer[], double corruptionChance, double lossChance){
     else if (rand()/RAND_MAX < corruptionChance) { //Checks for corruption of packet
         randomNum = rand()/RAND_MAX;
         if(randomNum <= 0.7){ //70% only one packet is affected
-            buffer[8] = '\0';
+            randomByte = rand() % 512;
+            buffer[randomByte] = '\0';
         }
         
         if(randomNum <= 0.2){ //20% chance two packets are affected
-            buffer[9] = '\0';
+            randomByte = rand() % 512;
+            buffer[randomByte] = '\0';
         }
 
         if(randomNum <= 0.1){ //10% chance three packets are affected
-            buffer[10] = '\0';
+            randomByte = rand() % 512;
+            buffer[randomByte] = '\0';
         }
         return 2;
     }
