@@ -27,10 +27,11 @@ int main() {
         std::cout << "Invalid file. Please enter a valid file name " << std::endl << std::flush;
     }
 
+
+    int packetCount = 0;
+
     while(!file_in.eof()){
         file_in.read(buffer, SEGMENT_SIZE);
-
-        int packetCount = 0;
 
         // Implementation of packet here....
         for (int i = 0; i < SEGMENT_SIZE; i++) {
@@ -49,8 +50,7 @@ int main() {
 
 
 void empty_buffer(char buffer[]) {
-    int bufferLength = sizeof(buffer) / sizeof(int);
-    for (int i = 0; i < bufferLength; i++) {
+    for (int i = 0; i < SEGMENT_SIZE; i++) {
         buffer[i] = '\0';
     }
 }
