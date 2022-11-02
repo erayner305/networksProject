@@ -38,6 +38,7 @@ int main() {
     char data_buffer[DATA_SIZE] = {};
     
     // Define an empty buffer for our generated checksum
+    
     char checksum_buffer[CHECKSUM_SIZE] = {};
 
     // Define our empty packet
