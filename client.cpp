@@ -8,7 +8,7 @@
 
 void empty_buffer(char buffer[]);
 
-int gremlins(char buffer[], double corruptionChance, double lossChance)
+int gremlins(char buffer[], double corruptionChance, double lossChance);
 
 int main() {
     // Input string to open
@@ -46,7 +46,7 @@ int main() {
     }
 
     file_in.close();
-
+    
     return 0;
 }
 
