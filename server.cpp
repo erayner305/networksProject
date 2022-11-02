@@ -15,6 +15,26 @@ void generate_checksum(char input_buffer[], char output_buffer[]);
 
 
 int main() {
+    int n, sd;
+    struct socket_address_in_server;
+    char buffer[512];
+
+    server.sin_family = AF_INET;
+    server.sin_addr.s_addr = hton1(INADDR_ANY);
+    server.sin_port = htons(12345);
+
+    sd = socket(AF_INET, SOCK_DGRAM, 0);
+
+    bind(sd, (struct sockaddr *)&server, sizeof(server));
+
+    for(;;) {
+        n = recv (sd, buf, sizeof(buf), 0);
+        buf[n] = '\0';
+        printf("received: %s\n", buffer);
+    }
+
+    close(sd);
+    
 
     // Input string to open
     std::string input_name;
