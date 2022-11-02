@@ -6,6 +6,7 @@
 #include <vector>
 #include <string.h>
 #include <stdio.h>
+#include <unistd.h>
 
 int SEGMENT_SIZE = 512;
 int CHECKSUM_SIZE = 4;
@@ -13,7 +14,7 @@ int PACKET_COUNT_SIZE = 4;
 int HEADER_SIZE = CHECKSUM_SIZE + PACKET_COUNT_SIZE;
 int DATA_SIZE = SEGMENT_SIZE - HEADER_SIZE;
 
-void empty_buffer(char buffer[]);
+void empty_buffer(char buffer[], int size);
 
 void generate_checksum(char input_buffer[], char output_buffer[]);
 
@@ -36,12 +37,15 @@ int main() {
         std::cout << "Invalid file. Please enter a valid file name " << std::endl << std::flush;
     }
 
+    // Close it
+    file_in.close();
 
-    int n, sd, new_fd;
+
+    int n, sd, client_fd;
     struct sockaddr_in server;
 
     server.sin_family = AF_INET;
-    server.sin_addr.s_addr = htonl(INADDR_ANY);
+    server.sin_addr.s_addr = inet_addr("127.0.0.1");
     server.sin_port = htons(12345);
 
     sd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -51,11 +55,11 @@ int main() {
 
     listen(sd, 10);
 
-    struct sockaddr_storage their_addr;
-    socklen_t addr_size = sizeof(their_addr);
-    new_fd = accept(sd, (struct sockaddr *)&their_addr, &addr_size);
+    struct sockaddr_storage client_addr;
+    socklen_t client_size = sizeof(client_addr);
+    client_fd = accept(sd, (struct sockaddr *)&client_addr, &client_size);
 
-    std::cout << "Got connection" << std::endl;
+    std::cout << "Ready" << std::endl;
 
     // Integer to keep track of our packet counts
     int packet_count = 0;
@@ -75,10 +79,15 @@ int main() {
 
     char message_buffer[1] = {};
 
+    socklen_t serverLen = sizeof(server);
+
     while (true) {
-        n = recv(sd, message_buffer, sizeof(message_buffer), 0);
+        n = recvfrom(sd, message_buffer, sizeof(message_buffer), 0, (struct sockaddr *)&server, &serverLen);
 
         if (message_buffer[0] == 'G') {
+
+            file_in.open(input_name.c_str(), std::ios_base::binary);
+
             while(!file_in.eof()){
                 file_in.read(data_buffer, DATA_SIZE);
 
@@ -93,10 +102,16 @@ int main() {
                 // Send packet to client
                 sendto(sd, packet, SEGMENT_SIZE, 0, (struct sockaddr *)&server, sizeof(server));
 
-                empty_buffer(packet);
+                empty_buffer(packet, SEGMENT_SIZE);
+                empty_buffer(data_buffer, DATA_SIZE);
+
+                usleep(500);
             }
 
+            sendto(sd, "\0", 1, 0, (struct sockaddr *)&server, sizeof(server));
+
             file_in.close();
+            packet_count = 0;
         }
     }
     
@@ -106,8 +121,8 @@ int main() {
 }
 
 
-void empty_buffer(char buffer[]) {
-    for (int i = 0; i < SEGMENT_SIZE; i++) {
+void empty_buffer(char buffer[], int size) {
+    for (int i = 0; i < size; i++) {
         buffer[i] = '\0';
     }
 }

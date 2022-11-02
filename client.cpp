@@ -1,65 +1,78 @@
 // This program is intended to be run on the client side. It will initiate connection with a server and push a file using segmentation
 
+#include "unp.h"
 #include <iostream>
 #include <fstream>
 #include <vector>
 #include <string>
+#include <cstring>
 
 #define SEGMENT_SIZE 512
 
-void empty_buffer(char buffer[]);
+void empty_buffer(char buffer[], int size);
 
 int gremlins(char buffer[], double corruptionChance, double lossChance);
 
-int main() {
-    // Input string to open
-    std::string input_name;
+int main(int argc, char **argv) {
+    int sd;
+    struct sockaddr_in server;
+    socklen_t serAddrLen;
 
-    // Define an empty buffer based on our segment size
-    char buffer[SEGMENT_SIZE] = {};
+    sd = socket(AF_INET,SOCK_DGRAM,0);
 
-    // File in stream
-    std::ifstream file_in;
+    server.sin_family = AF_INET;
+    server.sin_port = htons(12345);
+    server.sin_addr.s_addr = inet_addr("127.0.0.1");
 
-    while (true)
-    {
-        std::cout << "File name: " << std::flush;
-        std::getline(std::cin, input_name);
-        file_in.open(input_name.c_str(), std::ios_base::binary);
-        if (file_in) break;
-        std::cout << "Invalid file. Please enter a valid file name " << std::endl << std::flush;
-    }
+    sendto(sd, "G", 1, 0, (struct sockaddr*)&server, sizeof(server));
 
+    int n;
+    char message_buffer[512];
+    serAddrLen = sizeof(server);
 
-    int packetCount = 0;
+    std::ofstream file;
+    file.open("received.bin");
 
-    while(!file_in.eof()){
-        file_in.read(buffer, SEGMENT_SIZE);
+    char file_data_buffer[504] = {};
 
-        // Implementation of packet here....
-        for (int i = 0; i < SEGMENT_SIZE; i++) {
-            std::cout << buffer[i];
+    for (;;) {
+        std::cout << "Waiting for packet..." << std::endl;
+        
+        n = recvfrom(sd, message_buffer, 512, 0, (struct sockaddr*)&server, &serAddrLen);
+        std::cout << "Got " << n << " bytes in response" << std::endl;
+
+        std::memcpy(file_data_buffer, &message_buffer[8], 504);
+        file_data_buffer[504] = '\0';
+
+        size_t len = strlen(file_data_buffer); // will calculate number of non-0 symbols before first 0
+        char * newBuf = (char *)malloc(len); // allocate memory for new array, don't forget to free it later
+        memcpy(newBuf, file_data_buffer, len);
+
+        if (message_buffer[0] != '\0') {
+            file.write(newBuf, len);
+        } else {
+            std::cout << "End of transmission" << std::endl;
+            file.close();
         }
 
-        empty_buffer(buffer);
-
-        std::cout << std::endl << "End of Packet " << ++packetCount << std::endl;
+        empty_buffer(file_data_buffer, 504);
+        empty_buffer(message_buffer, 512);
     }
-
-    file_in.close();
     
     return 0;
 }
 
 
-void empty_buffer(char buffer[]) {
-    for (int i = 0; i < SEGMENT_SIZE; i++) {
+void empty_buffer(char buffer[], int size) {
+    for (int i = 0; i < size; i++) {
         buffer[i] = '\0';
     }
 }
 
+
 int gremlins(char buffer[], double corruptionChance, double lossChance){
     double randomNum;
+    int randomByte;
     srand(time(NULL));
 
     //Error Checking.
@@ -74,15 +87,18 @@ int gremlins(char buffer[], double corruptionChance, double lossChance){
     else if (rand()/RAND_MAX < corruptionChance) { //Checks for corruption of packet
         randomNum = rand()/RAND_MAX;
         if(randomNum <= 0.7){ //70% only one packet is affected
-            buffer[8] = '\0';
+            randomByte = rand() % 512;
+            buffer[randomByte] = '\0';
         }
         
         if(randomNum <= 0.2){ //20% chance two packets are affected
-            buffer[9] = '\0';
+            randomByte = rand() % 512;
+            buffer[randomByte] = '\0';
         }
 
         if(randomNum <= 0.1){ //10% chance three packets are affected
-            buffer[10] = '\0';
+            randomByte = rand() % 512;
+            buffer[randomByte] = '\0';
         }
         return 2;
     }
