@@ -2,3 +2,6 @@
 main
 .vscode/
 .vscode*
+*.bin
+client
+server
