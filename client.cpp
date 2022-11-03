@@ -7,9 +7,9 @@
 #include <string>
 #include <cstring>
 
-#define SEGMENT_SIZE 512
-#define CORRUPTION_CHANCE = 0.1
-#define LOSS_CHANCE = 0.1
+int SEGMENT_SIZE = 512;
+double CORRUPTION_CHANCE = 0.1;
+double LOSS_CHANCE = 0.1;
 
 void empty_buffer(char buffer[], int size);
 
@@ -38,10 +38,9 @@ int main(int argc, char **argv) {
     char file_data_buffer[504] = {};
 
     for (;;) {
-        std::cout << "Waiting for packet..." << std::endl;
-        
         n = recvfrom(sd, message_buffer, 512, 0, (struct sockaddr*)&server, &serAddrLen);
-        std::cout << "Got " << n << " bytes in response" << std::endl;
+
+        std::cout << "[Info] Got " << n << " bytes in response" << std::endl;
 
         int packet_status = gremlins(message_buffer, CORRUPTION_CHANCE, LOSS_CHANCE);
 
@@ -56,7 +55,7 @@ int main(int argc, char **argv) {
             if (message_buffer[0] != '\0') {
                 file.write(newBuf, len);
             } else {
-                std::cout << "End of transmission" << std::endl;
+                std::cout << "[Info] End of transmission" << std::endl;
                 file.close();
             }
 
@@ -86,23 +85,30 @@ int gremlins(char buffer[], double corruptionChance, double lossChance){
         return -1;
     } 
 
+    double rand_losschance = static_cast<double>(rand()) / RAND_MAX;
+    std::cout << rand_losschance << std::endl;
 
-    if(rand()/RAND_MAX < lossChance){ //Checks for loss of packet
+    if(rand_losschance < lossChance){ //Checks for loss of packet
+        std::cout << rand_losschance << std::endl;
+        std::cout << "[Gremlin] Packet was lost" << std::endl;
         return 1;
     }
     else if (rand()/RAND_MAX < corruptionChance) { //Checks for corruption of packet
         randomNum = rand()/RAND_MAX;
         if(randomNum <= 0.7){ //70% only one packet is affected
+            //std::cout << "[Gremlin] 1/3 bytes were affected" << std::endl;
             randomByte = rand() % 512;
             buffer[randomByte] = '1';
         }
         
         if(randomNum <= 0.2){ //20% chance two packets are affected
+            //std::cout << "[Gremlin] 2/3 bytes were affected" << std::endl;
             randomByte = rand() % 512;
             buffer[randomByte] = '1';
         }
 
         if(randomNum <= 0.1){ //10% chance three packets are affected
+            //std::cout << "[Gremlin] 3/3 bytes were affected" << std::endl;
             randomByte = rand() % 512;
             buffer[randomByte] = '1';
         }
