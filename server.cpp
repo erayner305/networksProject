@@ -1,5 +1,3 @@
-// This program is intended to be run on the client side. It will initiate connection with a server and push a file using segmentation
-
 #include "unp.h"
 #include <iostream>
 #include <fstream>
@@ -11,8 +9,13 @@
 int SEGMENT_SIZE = 512;
 int CHECKSUM_SIZE = 4;
 int PACKET_COUNT_SIZE = 4;
+int INSTRUCTION_SIZE = 3;
 int HEADER_SIZE = CHECKSUM_SIZE + PACKET_COUNT_SIZE;
 int DATA_SIZE = SEGMENT_SIZE - HEADER_SIZE;
+
+char GET_INSTR[4] = "GET";
+char ACK_INSTR[4] = "ACK";
+char ERR_INSTR[4] = "ERR";
 
 void empty_buffer(char buffer[], int size);
 
@@ -22,35 +25,19 @@ void generate_packet_num(uint32_t packet_num, char packet_num_buffer[]);
 
 int main() {
 
-    // Input string to open
-    std::string input_name;
-
-    // File in stream
-    std::ifstream file_in;
-
-    while (true)
-    {
-        std::cout << "File name: " << std::flush;
-        std::getline(std::cin, input_name);
-        file_in.open(input_name.c_str(), std::ios_base::binary);
-        if (file_in) break;
-        std::cout << "Invalid file. Please enter a valid file name " << std::endl << std::flush;
-    }
-
-    // Close it
-    file_in.close();
-
+    // Start our network connection code
 
     int n, sd, client_fd;
     struct sockaddr_in server;
+    socklen_t serverLen = sizeof(server);
 
     server.sin_family = AF_INET;
     server.sin_addr.s_addr = inet_addr("127.0.0.1");
-    server.sin_port = htons(12345);
+    server.sin_port = htons(SERV_PORT);
 
     sd = socket(AF_INET, SOCK_DGRAM, 0);
 
-    //Bind the server to the socket
+    // Bind the server to the socket
     bind(sd, (struct sockaddr *)&server, sizeof(server));
 
     listen(sd, 10);
@@ -59,57 +46,99 @@ int main() {
     socklen_t client_size = sizeof(client_addr);
     client_fd = accept(sd, (struct sockaddr *)&client_addr, &client_size);
 
+
     std::cout << "Ready" << std::endl;
+
 
     // Integer to keep track of our packet counts
     int packet_count = 0;
     
-    // Define an empty buffer based on our segment size
+    // Define char buffers  based on our segment size
     char data_buffer[DATA_SIZE] = {};
     
     // Define an empty buffer for our generated checksum
-    
     char checksum_buffer[CHECKSUM_SIZE] = {};
 
     // Define an empty buffer for our generated checksum
-    char packet_count_buffer[PACKET_COUNT_SIZE] = {};
+    char packet_count_buffer[PACKET_COUNT_SIZE] = {};   
 
     // Define our empty packet
     char packet[SEGMENT_SIZE] = {};
 
-    char message_buffer[1] = {};
+    // Define our buffer to store our incoming message
+    char message_buffer[SEGMENT_SIZE] = {};
 
-    socklen_t serverLen = sizeof(server);
+    // Define a buffer to store the GET instruction of the message 
+    char instruction_buffer[4] = {};
+
+    // Define a buffer to store the filename passed in the GET packet
+    char filename_buffer[SEGMENT_SIZE - INSTRUCTION_SIZE] = {};
+
+    // Input string to open
+    std::string input_name;
+
+    // File in stream
+    std::ifstream file_in;
+
 
     while (true) {
-        n = recvfrom(sd, message_buffer, sizeof(message_buffer), 0, (struct sockaddr *)&server, &serverLen);
+        std::cout << "Waiting for data" << std::endl;
 
-        if (message_buffer[0] == 'G') {
+        n = recvfrom(sd, message_buffer, SEGMENT_SIZE, 0, (struct sockaddr *)&server, &serverLen);
 
-            file_in.open(input_name.c_str(), std::ios_base::binary);
+        std::cout << "Got " << n << " bytes" << std::endl;
 
-            while(!file_in.eof()){
-                file_in.read(data_buffer, DATA_SIZE);
+        std::copy(message_buffer, message_buffer+4, instruction_buffer);
 
-                // Generate our checksum using our buffer
-                generate_checksum(data_buffer, checksum_buffer);
-                generate_packet_num(++packet_count, packet_count_buffer);
+        std::cout << "'" << instruction_buffer << "'" << std::endl;
 
-                std::copy(checksum_buffer, checksum_buffer+CHECKSUM_SIZE, packet);
-                std::copy(packet_count_buffer, packet_count_buffer+PACKET_COUNT_SIZE, packet+CHECKSUM_SIZE);
-                std::copy(data_buffer, data_buffer+DATA_SIZE, packet+8);
+        if (strcmp(instruction_buffer, GET_INSTR) == 0) {
 
-                // Send packet to client
-                sendto(sd, packet, SEGMENT_SIZE, 0, (struct sockaddr *)&server, sizeof(server));
+            std::copy(message_buffer+4, message_buffer+SEGMENT_SIZE, filename_buffer);
 
-                empty_buffer(packet, SEGMENT_SIZE);
-                empty_buffer(data_buffer, DATA_SIZE);
+            std::string target_filename = std::string(filename_buffer);
 
-                usleep(500);
+            file_in.open(target_filename.c_str(), std::ios_base::binary);
+
+            if (file_in) {
+
+                sendto(sd, ACK_INSTR, 4, 0, (struct sockaddr*)&server, sizeof(server));
+
+                // File requested exists, send all of the packets for the file
+                while(!file_in.eof()){
+                    // Sleep in the event of packet overflow
+                    usleep(100);
+
+                    file_in.read(data_buffer, DATA_SIZE);
+
+                    // Generate our checksum using our buffer
+                    generate_checksum(data_buffer, checksum_buffer);
+                    generate_packet_num(++packet_count, packet_count_buffer);
+
+                    std::copy(checksum_buffer, checksum_buffer+CHECKSUM_SIZE, packet);
+                    std::copy(packet_count_buffer, packet_count_buffer+PACKET_COUNT_SIZE, packet+CHECKSUM_SIZE);
+                    std::copy(data_buffer, data_buffer+DATA_SIZE, packet+8);
+
+                    // Send packet to client
+                    sendto(sd, packet, SEGMENT_SIZE, 0, (struct sockaddr *)&server, sizeof(server));
+
+                    empty_buffer(packet, SEGMENT_SIZE);
+                    empty_buffer(data_buffer, DATA_SIZE);
+                }
+
+                sendto(sd, "\0", 1, 0, (struct sockaddr *)&server, sizeof(server));
+
+            } else {
+
+                std::cout << "[Error] Recieved request for file " << target_filename << " that does not exist" << std::endl;
+                sendto(sd, ERR_INSTR, 4, 0, (struct sockaddr*)&server, sizeof(server));
+
             }
 
-            sendto(sd, "\0", 1, 0, (struct sockaddr *)&server, sizeof(server));
-
+            empty_buffer(packet, SEGMENT_SIZE);
+            empty_buffer(message_buffer, SEGMENT_SIZE);
+            empty_buffer(data_buffer, DATA_SIZE);
+            
             file_in.close();
             packet_count = 0;
         }
