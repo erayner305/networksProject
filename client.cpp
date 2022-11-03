@@ -78,7 +78,7 @@ void empty_buffer(char buffer[], int size) {
 int gremlins(char buffer[], double corruptionChance, double lossChance){
     double randomNum;
     int randomByte;
-    srand(time(NULL));
+    srand(rand()*time(NULL));
 
     //Error Checking.
     if (corruptionChance > 1 || corruptionChance < 0 || lossChance > 1 || lossChance < 0) { 
@@ -86,7 +86,6 @@ int gremlins(char buffer[], double corruptionChance, double lossChance){
     } 
 
     double rand_losschance = (double) rand() / RAND_MAX;
-    std::cout << rand_losschance << std::endl;
 
     if(rand_losschance < lossChance){ //Checks for loss of packet
         std::cout << "[Gremlin] Packet was lost" << std::endl;
