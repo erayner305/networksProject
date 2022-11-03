@@ -5,3 +5,4 @@ main
 *.bin
 client
 server
+recv_bee_movie.txt

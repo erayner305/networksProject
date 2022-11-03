@@ -12,6 +12,13 @@ int SEGMENT_SIZE = 512;
 char GET_INSTR[4] = "GET";
 char ACK_INSTR[4] = "ACK";
 
+int CHECKSUM_SIZE = 4;
+int PACKET_COUNT_SIZE = 4;
+int INSTRUCTION_SIZE = 3;
+int HEADER_SIZE = CHECKSUM_SIZE + PACKET_COUNT_SIZE;
+int DATA_SIZE = SEGMENT_SIZE - HEADER_SIZE;
+
+
 
 uint32_t buffToUint32(char* buffer);
 
@@ -19,6 +26,7 @@ void empty_buffer(char buffer[], int size);
 
 int gremlins(char buffer[], double corruptionChance, double lossChance);
 
+void generate_checksum(char input_buffer[], char output_buffer[]);
 
 int main(int argc, char **argv) {
     int sd;
@@ -42,6 +50,8 @@ int main(int argc, char **argv) {
 
     char packet_checksum_buff[4] = {};
     char packet_number_buff[4] = {};
+
+    char checksum_buffer[CHECKSUM_SIZE] = {};
 
     while(true) {
         std::cout << "File name to download: " << std::flush;
@@ -85,6 +95,7 @@ int main(int argc, char **argv) {
                 uint32_t packet_number = buffToUint32(packet_number_buff);
                 uint32_t packet_checksum = buffToUint32(packet_checksum_buff); 
 
+
                 std::cout << "[Info] Got packet number: " << packet_number << std::endl;
 
                 // Get the raw file data from the message buffer
@@ -95,6 +106,13 @@ int main(int argc, char **argv) {
                 char * newBuf = (char *)malloc(len); // allocate memory for new array, don't forget to free it later
                 memcpy(newBuf, file_data_buffer, len);
 
+                generate_checksum(newBuf, checksum_buffer);
+                uint32_t actual_checksum = buffToUint32(checksum_buffer);
+                if(actual_checksum != packet_checksum) {
+                    std::cout << "Packet Damaged" << std::endl;
+                    std::cout << "actual: " << actual_checksum << std::endl;
+                    std::cout << "expected: " << packet_checksum<< std::endl;
+                }
 
                 // Generate our packet tuple from the incoming packet
                 std::vector<char> file_buffer_vector(newBuf, newBuf + len);
@@ -133,6 +151,15 @@ void empty_buffer(char buffer[], int size) {
     }
 }
 
+void generate_checksum(char data_buffer[], char checksum_buffer[]) {
+    uint32_t sum = 0;
+    for(int i = 0; i < DATA_SIZE; i++) {
+        sum += data_buffer[i];
+    }
+    std::cout << "Checksum: " << sum << std::endl;
+    memcpy(checksum_buffer, &sum, sizeof(sum));
+}
+
 
 int gremlins(char buffer[], double corruptionChance, double lossChance){
     double randomNum;
@@ -151,21 +178,21 @@ int gremlins(char buffer[], double corruptionChance, double lossChance){
         return 1;
     }
     else if ((double) rand()/RAND_MAX < corruptionChance) { //Checks for corruption of packet
-        randomNum = rand()/RAND_MAX;
+        randomNum = (double) rand()/RAND_MAX;
         if(randomNum <= 0.7){ //70% only one packet is affected
-            //std::cout << "[Gremlin] 1/3 bytes were affected" << std::endl;
+            std::cout << "[Gremlin] 1/3 bytes were affected" << std::endl;
             randomByte = rand() % 512;
             buffer[randomByte] = '1';
         }
         
         if(randomNum <= 0.2){ //20% chance two packets are affected
-            //std::cout << "[Gremlin] 2/3 bytes were affected" << std::endl;
+            std::cout << "[Gremlin] 2/3 bytes were affected" << std::endl;
             randomByte = rand() % 512;
             buffer[randomByte] = '1';
         }
 
         if(randomNum <= 0.1){ //10% chance three packets are affected
-            //std::cout << "[Gremlin] 3/3 bytes were affected" << std::endl;
+            std::cout << "[Gremlin] 3/3 bytes were affected" << std::endl;
             randomByte = rand() % 512;
             buffer[randomByte] = '1';
         }
