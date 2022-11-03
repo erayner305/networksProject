@@ -18,17 +18,36 @@ int main(int argc, char **argv) {
     struct sockaddr_in server;
     socklen_t serAddrLen;
 
+    std::string input_name;
+
     sd = socket(AF_INET,SOCK_DGRAM,0);
 
     server.sin_family = AF_INET;
     server.sin_port = htons(12345);
     server.sin_addr.s_addr = inet_addr("127.0.0.1");
 
-    sendto(sd, "G", 1, 0, (struct sockaddr*)&server, sizeof(server));
-
     int n;
     char message_buffer[512];
     serAddrLen = sizeof(server);
+
+    while(true){
+        std::cout << "File name: " << std::flush;
+        std::getline(std::cin, input_name);
+
+        char packet[input_name.length()+4] = {}; //Create the packet that will be sent. +4 because string length, +1 for null, +3 for GET
+
+        char * input_name_cstr = new char [input_name.length()+1];
+        std::strcpy(input_name_cstr, input_name.c_str()); //convert from string to cstring
+
+        //populate "packet" with GET and the file name
+        packet[0] = 'G';
+        packet[1] = 'E';
+        packet[2] = 'T';
+        memcpy(packet[3], input_name_cstr,input_name.length() + 1);
+        
+        sendto(sd, packet, 1, 0, (struct sockaddr*)&server, sizeof(server)); //send a packet containing "GET" and file name
+        break;
+    }
 
     std::ofstream file;
     file.open("received.bin");
