@@ -39,7 +39,7 @@ int main(int argc, char **argv) {
     sd = socket(AF_INET,SOCK_DGRAM,0);
 
     server.sin_family = AF_INET;
-    server.sin_port = htons(12345);
+    server.sin_port = htons(SERV_PORT);
     server.sin_addr.s_addr = inet_addr(server_address.c_str());
 
     int n;
