@@ -85,6 +85,8 @@ int main(int argc, char **argv) {
                 uint32_t packet_number = buffToUint32(packet_number_buff);
                 uint32_t packet_checksum = buffToUint32(packet_checksum_buff); 
 
+                std::cout << "[Info] Got packet number: " << packet_number << std::endl;
+
                 // Get the raw file data from the message buffer
                 std::memcpy(file_data_buffer, &message_buffer[8], 504);
                 file_data_buffer[504] = '\0';
