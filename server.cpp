@@ -62,7 +62,7 @@ int main() {
     char packet[SEGMENT_SIZE] = {};
 
     // Define our buffer to store our incoming message
-    char message_buffer[1] = {};
+    char message_buffer[SEGMENT_SIZE] = {};
 
     // Define a buffer to store the GET instruction of the message 
     char instruction_buffer[3] = {};
@@ -80,11 +80,11 @@ int main() {
     while (true) {
         n = recvfrom(sd, message_buffer, sizeof(message_buffer), 0, (struct sockaddr *)&server, &serverLen);
 
-        std::copy(message_buffer, message_buffer+3, instruction_buffer);
+        std::copy(message_buffer, message_buffer+4, instruction_buffer);
 
         if (message_buffer == std::string("GET").c_str()) {
 
-            std::copy(message_buffer+3, message_buffer+SEGMENT_SIZE, filename_buffer);
+            std::copy(message_buffer+4, message_buffer+SEGMENT_SIZE, filename_buffer);
 
             std::string target_filename = std::string(filename_buffer);
 
@@ -119,10 +119,15 @@ int main() {
 
             } else {
 
-                // File requested does not exist
+                std::cout << "[Error] Recieved request for file " << target_filename << " that does not exist" << std::endl;
+                sendto(sd, "ERR", 1, 0, (struct sockaddr*)&server, sizeof(server));
 
             }
 
+            empty_buffer(packet, SEGMENT_SIZE);
+            empty_buffer(message_buffer, SEGMENT_SIZE);
+            empty_buffer(data_buffer, DATA_SIZE);
+            
             file_in.close();
             packet_count = 0;
         }
