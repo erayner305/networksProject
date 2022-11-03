@@ -6,14 +6,19 @@
 #include <vector>
 #include <string>
 #include <cstring>
+#include <tuple>
 
 int SEGMENT_SIZE = 512;
 char GET_INSTR[4] = "GET";
 char ACK_INSTR[4] = "ACK";
 
+
+uint32_t buffToUint32(char* buffer);
+
 void empty_buffer(char buffer[], int size);
 
 int gremlins(char buffer[], double corruptionChance, double lossChance);
+
 
 int main(int argc, char **argv) {
     int sd;
@@ -35,6 +40,9 @@ int main(int argc, char **argv) {
     char file_data_buffer[504] = {};
     char packet_instruction[4] = {};
 
+    char packet_checksum_buff[4] = {};
+    char packet_number_buff[4] = {};
+
     while(true) {
         std::cout << "File name to download: " << std::flush;
         std::getline(std::cin, input_filename);
@@ -52,6 +60,9 @@ int main(int argc, char **argv) {
         
         std::cout << "Response: " << packet_instruction << std::endl;
 
+        // Declare a vector to hold all of our file data for sorting packets
+        std::vector<std::tuple<int, std::vector<char>>> file_data_vector;
+
         if (strcmp(packet_instruction, ACK_INSTR) == 0) {
             
             // File exists
@@ -67,12 +78,28 @@ int main(int argc, char **argv) {
                     break;
                 }
 
+                // Determine the checksum and packet number values
+                std::memcpy(packet_checksum_buff, &message_buffer[0], 4);
+                std::memcpy(packet_number_buff, &message_buffer[4], 4);
+
+                uint32_t packet_number = buffToUint32(packet_number_buff);
+                uint32_t packet_checksum = buffToUint32(packet_checksum_buff); 
+
+                // Get the raw file data from the message buffer
                 std::memcpy(file_data_buffer, &message_buffer[8], 504);
                 file_data_buffer[504] = '\0';
 
                 size_t len = strlen(file_data_buffer); // will calculate number of non-0 symbols before first 0
                 char * newBuf = (char *)malloc(len); // allocate memory for new array, don't forget to free it later
                 memcpy(newBuf, file_data_buffer, len);
+
+
+                // Generate our packet tuple from the incoming packet
+                std::vector<char> file_buffer_vector(newBuf, newBuf + len);
+                std::tuple<uint32_t, std::vector<char>> packet_tuple (packet_number, file_buffer_vector);
+
+                // Append the packet tuple to our vector of file data
+                file_data_vector.push_back(packet_tuple);
 
                 downloaded_file.write(newBuf, len);
             }
@@ -91,6 +118,12 @@ int main(int argc, char **argv) {
     return 0;
 }
 
+uint32_t buffToUint32(char* buffer)
+{
+    int a;
+    memcpy( &a, buffer, sizeof( int ) );
+    return a;
+}
 
 void empty_buffer(char buffer[], int size) {
     for (int i = 0; i < size; i++) {
