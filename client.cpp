@@ -85,15 +85,14 @@ int gremlins(char buffer[], double corruptionChance, double lossChance){
         return -1;
     } 
 
-    double rand_losschance = static_cast<double>(rand()) / RAND_MAX;
+    double rand_losschance = (double) rand() / RAND_MAX;
     std::cout << rand_losschance << std::endl;
 
     if(rand_losschance < lossChance){ //Checks for loss of packet
-        std::cout << rand_losschance << std::endl;
         std::cout << "[Gremlin] Packet was lost" << std::endl;
         return 1;
     }
-    else if (rand()/RAND_MAX < corruptionChance) { //Checks for corruption of packet
+    else if ((double) rand()/RAND_MAX < corruptionChance) { //Checks for corruption of packet
         randomNum = rand()/RAND_MAX;
         if(randomNum <= 0.7){ //70% only one packet is affected
             //std::cout << "[Gremlin] 1/3 bytes were affected" << std::endl;
