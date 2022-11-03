@@ -41,7 +41,7 @@ int main(int argc, char **argv) {
         n = recvfrom(sd, message_buffer, 512, 0, (struct sockaddr*)&server, &serAddrLen);
         std::cout << "Got " << n << " bytes in response" << std::endl;
 
-        std::memcpy(file_data_buffer, &message_buffer[8], 504);
+        memcpy(file_data_buffer, &message_buffer[8], 504);
         file_data_buffer[504] = '\0';
 
         size_t len = strlen(file_data_buffer); // will calculate number of non-0 symbols before first 0

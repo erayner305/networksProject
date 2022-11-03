@@ -1,5 +1,3 @@
-// This program is intended to be run on the client side. It will initiate connection with a server and push a file using segmentation
-
 #include "unp.h"
 #include <iostream>
 #include <fstream>
@@ -11,6 +9,7 @@
 int SEGMENT_SIZE = 512;
 int CHECKSUM_SIZE = 4;
 int PACKET_COUNT_SIZE = 4;
+int INSTRUCTION_SIZE = 3;
 int HEADER_SIZE = CHECKSUM_SIZE + PACKET_COUNT_SIZE;
 int DATA_SIZE = SEGMENT_SIZE - HEADER_SIZE;
 
@@ -22,35 +21,19 @@ void generate_packet_num(uint32_t packet_num, char packet_num_buffer[]);
 
 int main() {
 
-    // Input string to open
-    std::string input_name;
-
-    // File in stream
-    std::ifstream file_in;
-
-    while (true)
-    {
-        std::cout << "File name: " << std::flush;
-        std::getline(std::cin, input_name);
-        file_in.open(input_name.c_str(), std::ios_base::binary);
-        if (file_in) break;
-        std::cout << "Invalid file. Please enter a valid file name " << std::endl << std::flush;
-    }
-
-    // Close it
-    file_in.close();
-
+    // Start our network connection code
 
     int n, sd, client_fd;
     struct sockaddr_in server;
+    socklen_t serverLen = sizeof(server);
 
     server.sin_family = AF_INET;
     server.sin_addr.s_addr = inet_addr("127.0.0.1");
-    server.sin_port = htons(12345);
+    server.sin_port = htons(SERV_PORT);
 
     sd = socket(AF_INET, SOCK_DGRAM, 0);
 
-    //Bind the server to the socket
+    // Bind the server to the socket
     bind(sd, (struct sockaddr *)&server, sizeof(server));
 
     listen(sd, 10);
@@ -59,56 +42,86 @@ int main() {
     socklen_t client_size = sizeof(client_addr);
     client_fd = accept(sd, (struct sockaddr *)&client_addr, &client_size);
 
+
     std::cout << "Ready" << std::endl;
+
 
     // Integer to keep track of our packet counts
     int packet_count = 0;
     
-    // Define an empty buffer based on our segment size
+    // Define char buffers  based on our segment size
     char data_buffer[DATA_SIZE] = {};
     
     // Define an empty buffer for our generated checksum
-    
     char checksum_buffer[CHECKSUM_SIZE] = {};
 
     // Define an empty buffer for our generated checksum
-    char packet_count_buffer[PACKET_COUNT_SIZE] = {};
+    char packet_count_buffer[PACKET_COUNT_SIZE] = {};   
 
     // Define our empty packet
     char packet[SEGMENT_SIZE] = {};
 
+    // Define our buffer to store our incoming message
     char message_buffer[1] = {};
 
-    socklen_t serverLen = sizeof(server);
+    // Define a buffer to store the GET instruction of the message 
+    char instruction_buffer[3] = {};
+
+    // Define a buffer to store the filename passed in the GET packet
+    char filename_buffer[SEGMENT_SIZE - INSTRUCTION_SIZE] = {};
+
+    // Input string to open
+    std::string input_name;
+
+    // File in stream
+    std::ifstream file_in;
+
 
     while (true) {
         n = recvfrom(sd, message_buffer, sizeof(message_buffer), 0, (struct sockaddr *)&server, &serverLen);
 
-        if (message_buffer[0] == 'G') {
+        std::copy(message_buffer, message_buffer+3, instruction_buffer);
 
-            file_in.open(input_name.c_str(), std::ios_base::binary);
+        if (message_buffer == std::string("GET").c_str()) {
 
-            while(!file_in.eof()){
-                file_in.read(data_buffer, DATA_SIZE);
+            std::copy(message_buffer+3, message_buffer+SEGMENT_SIZE, filename_buffer);
 
-                // Generate our checksum using our buffer
-                generate_checksum(data_buffer, checksum_buffer);
-                generate_packet_num(++packet_count, packet_count_buffer);
+            std::string target_filename = std::string(filename_buffer);
 
-                std::copy(checksum_buffer, checksum_buffer+CHECKSUM_SIZE, packet);
-                std::copy(packet_count_buffer, packet_count_buffer+PACKET_COUNT_SIZE, packet+CHECKSUM_SIZE);
-                std::copy(data_buffer, data_buffer+DATA_SIZE, packet+8);
+            file_in.open(target_filename.c_str(), std::ios_base::binary);
 
-                // Send packet to client
-                sendto(sd, packet, SEGMENT_SIZE, 0, (struct sockaddr *)&server, sizeof(server));
+            if (file_in) {
 
-                empty_buffer(packet, SEGMENT_SIZE);
-                empty_buffer(data_buffer, DATA_SIZE);
+                // File requested exists, send all of the packets for the file
+                while(!file_in.eof()){
 
-                usleep(500);
+                    file_in.read(data_buffer, DATA_SIZE);
+
+                    // Generate our checksum using our buffer
+                    generate_checksum(data_buffer, checksum_buffer);
+                    generate_packet_num(++packet_count, packet_count_buffer);
+
+                    std::copy(checksum_buffer, checksum_buffer+CHECKSUM_SIZE, packet);
+                    std::copy(packet_count_buffer, packet_count_buffer+PACKET_COUNT_SIZE, packet+CHECKSUM_SIZE);
+                    std::copy(data_buffer, data_buffer+DATA_SIZE, packet+8);
+
+                    // Send packet to client
+                    sendto(sd, packet, SEGMENT_SIZE, 0, (struct sockaddr *)&server, sizeof(server));
+
+                    empty_buffer(packet, SEGMENT_SIZE);
+                    empty_buffer(data_buffer, DATA_SIZE);
+
+                    // Sleep in the event of packet overflow
+                    usleep(100);
+                }
+
+                sendto(sd, "\0", 1, 0, (struct sockaddr *)&server, sizeof(server));
+
+            } else {
+
+                // File requested does not exist
+
             }
-
-            sendto(sd, "\0", 1, 0, (struct sockaddr *)&server, sizeof(server));
 
             file_in.close();
             packet_count = 0;
