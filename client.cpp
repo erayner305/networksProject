@@ -33,15 +33,16 @@ int main(int argc, char **argv) {
         char * input_name_cstr = new char [input_name.length()+1];
         std::strcpy(input_name_cstr, input_name.c_str()); //convert from string to cstring
 
-        char packet[input_name.length()+4] = {}; //Create the packet that will be sent. +4 because string length, +1 for null, +3 for GET
+        char packet[input_name.length()+4] = {}; //create the packet that will be sent. +4 because string length, +1 for null, +3 for GET
         
         //populate "packet" with GET and the file name
         packet[0] = 'G';
         packet[1] = 'E';
         packet[2] = 'T';
-        memcpy(packet[3], input_name_cstr, input_name.length() + 1);
+        std::copy(input_name_cstr, input_name_cstr+input_name.length()+1, packet + 3);
         
         sendto(sd, packet, 1, 0, (struct sockaddr*)&server, sizeof(server));
+
         //if file exists then break (needs implemented)
         break;
     }
