@@ -13,6 +13,10 @@ int INSTRUCTION_SIZE = 3;
 int HEADER_SIZE = CHECKSUM_SIZE + PACKET_COUNT_SIZE;
 int DATA_SIZE = SEGMENT_SIZE - HEADER_SIZE;
 
+char GET_INSTR[4] = "GET";
+char ACK_INSTR[4] = "ACK";
+char ERR_INSTR[4] = "ERR";
+
 void empty_buffer(char buffer[], int size);
 
 void generate_checksum(char input_buffer[], char output_buffer[]);
@@ -65,7 +69,7 @@ int main() {
     char message_buffer[SEGMENT_SIZE] = {};
 
     // Define a buffer to store the GET instruction of the message 
-    char instruction_buffer[3] = {};
+    char instruction_buffer[4] = {};
 
     // Define a buffer to store the filename passed in the GET packet
     char filename_buffer[SEGMENT_SIZE - INSTRUCTION_SIZE] = {};
@@ -78,11 +82,17 @@ int main() {
 
 
     while (true) {
-        n = recvfrom(sd, message_buffer, sizeof(message_buffer), 0, (struct sockaddr *)&server, &serverLen);
+        std::cout << "Waiting for data" << std::endl;
+
+        n = recvfrom(sd, message_buffer, SEGMENT_SIZE, 0, (struct sockaddr *)&server, &serverLen);
+
+        std::cout << "Got " << n << " bytes" << std::endl;
 
         std::copy(message_buffer, message_buffer+4, instruction_buffer);
 
-        if (message_buffer == std::string("GET").c_str()) {
+        std::cout << "'" << instruction_buffer << "'" << std::endl;
+
+        if (strcmp(instruction_buffer, GET_INSTR) == 0) {
 
             std::copy(message_buffer+4, message_buffer+SEGMENT_SIZE, filename_buffer);
 
@@ -92,8 +102,12 @@ int main() {
 
             if (file_in) {
 
+                sendto(sd, ACK_INSTR, 4, 0, (struct sockaddr*)&server, sizeof(server));
+
                 // File requested exists, send all of the packets for the file
                 while(!file_in.eof()){
+                    // Sleep in the event of packet overflow
+                    usleep(100);
 
                     file_in.read(data_buffer, DATA_SIZE);
 
@@ -110,9 +124,6 @@ int main() {
 
                     empty_buffer(packet, SEGMENT_SIZE);
                     empty_buffer(data_buffer, DATA_SIZE);
-
-                    // Sleep in the event of packet overflow
-                    usleep(100);
                 }
 
                 sendto(sd, "\0", 1, 0, (struct sockaddr *)&server, sizeof(server));
@@ -120,7 +131,7 @@ int main() {
             } else {
 
                 std::cout << "[Error] Recieved request for file " << target_filename << " that does not exist" << std::endl;
-                sendto(sd, "ERR", 1, 0, (struct sockaddr*)&server, sizeof(server));
+                sendto(sd, ERR_INSTR, 4, 0, (struct sockaddr*)&server, sizeof(server));
 
             }
 
