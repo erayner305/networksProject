@@ -8,6 +8,8 @@
 #include <cstring>
 
 #define SEGMENT_SIZE 512
+#define CORRUPTION_CHANCE = 0.1
+#define LOSS_CHANCE = 0.1
 
 void empty_buffer(char buffer[], int size);
 
@@ -41,22 +43,26 @@ int main(int argc, char **argv) {
         n = recvfrom(sd, message_buffer, 512, 0, (struct sockaddr*)&server, &serAddrLen);
         std::cout << "Got " << n << " bytes in response" << std::endl;
 
-        std::memcpy(file_data_buffer, &message_buffer[8], 504);
-        file_data_buffer[504] = '\0';
+        int packet_status = gremlins(message_buffer, CORRUPTION_CHANCE, LOSS_CHANCE);
 
-        size_t len = strlen(file_data_buffer); // will calculate number of non-0 symbols before first 0
-        char * newBuf = (char *)malloc(len); // allocate memory for new array, don't forget to free it later
-        memcpy(newBuf, file_data_buffer, len);
+        if(packet_status != 1) {
+            std::memcpy(file_data_buffer, &message_buffer[8], 504);
+            file_data_buffer[504] = '\0';
 
-        if (message_buffer[0] != '\0') {
-            file.write(newBuf, len);
-        } else {
-            std::cout << "End of transmission" << std::endl;
-            file.close();
-        }
+            size_t len = strlen(file_data_buffer); // will calculate number of non-0 symbols before first 0
+            char * newBuf = (char *)malloc(len); // allocate memory for new array, don't forget to free it later
+            memcpy(newBuf, file_data_buffer, len);
 
-        empty_buffer(file_data_buffer, 504);
-        empty_buffer(message_buffer, 512);
+            if (message_buffer[0] != '\0') {
+                file.write(newBuf, len);
+            } else {
+                std::cout << "End of transmission" << std::endl;
+                file.close();
+            }
+
+            empty_buffer(file_data_buffer, 504);
+            empty_buffer(message_buffer, 512);
+        }        
     }
     
     return 0;
@@ -88,17 +94,17 @@ int gremlins(char buffer[], double corruptionChance, double lossChance){
         randomNum = rand()/RAND_MAX;
         if(randomNum <= 0.7){ //70% only one packet is affected
             randomByte = rand() % 512;
-            buffer[randomByte] = '\0';
+            buffer[randomByte] = '1';
         }
         
         if(randomNum <= 0.2){ //20% chance two packets are affected
             randomByte = rand() % 512;
-            buffer[randomByte] = '\0';
+            buffer[randomByte] = '1';
         }
 
         if(randomNum <= 0.1){ //10% chance three packets are affected
             randomByte = rand() % 512;
-            buffer[randomByte] = '\0';
+            buffer[randomByte] = '1';
         }
         return 2;
     }
