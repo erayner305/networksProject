@@ -2,8 +2,8 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
-#include <string.h>
-#include <stdio.h>
+#include <string>
+#include <cstring>
 #include <unistd.h>
 
 int SEGMENT_SIZE = 512;
@@ -32,7 +32,7 @@ int main() {
     socklen_t serverLen = sizeof(server);
 
     server.sin_family = AF_INET;
-    server.sin_addr.s_addr = inet_addr("127.0.0.1");
+    server.sin_addr.s_addr = htonl(INADDR_ANY);
     server.sin_port = htons(SERV_PORT);
 
     sd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -82,15 +82,11 @@ int main() {
 
 
     while (true) {
-        std::cout << "Waiting for data" << std::endl;
+        std::cout << "Waiting for request" << std::endl;
 
         n = recvfrom(sd, message_buffer, SEGMENT_SIZE, 0, (struct sockaddr *)&server, &serverLen);
 
-        std::cout << "Got " << n << " bytes" << std::endl;
-
         std::copy(message_buffer, message_buffer+4, instruction_buffer);
-
-        std::cout << "'" << instruction_buffer << "'" << std::endl;
 
         if (strcmp(instruction_buffer, GET_INSTR) == 0) {
 
@@ -106,8 +102,9 @@ int main() {
 
                 // File requested exists, send all of the packets for the file
                 while(!file_in.eof()){
-                    // Sleep in the event of packet overflow
-                    usleep(100);
+                    empty_buffer(packet, SEGMENT_SIZE);
+                    empty_buffer(data_buffer, DATA_SIZE);
+                    empty_buffer(checksum_buffer, CHECKSUM_SIZE);
 
                     file_in.read(data_buffer, DATA_SIZE);
 
@@ -115,22 +112,22 @@ int main() {
                     generate_checksum(data_buffer, checksum_buffer);
                     generate_packet_num(++packet_count, packet_count_buffer);
 
-                    std::copy(checksum_buffer, checksum_buffer+CHECKSUM_SIZE, packet);
-                    std::copy(packet_count_buffer, packet_count_buffer+PACKET_COUNT_SIZE, packet+CHECKSUM_SIZE);
-                    std::copy(data_buffer, data_buffer+DATA_SIZE, packet+8);
+                    std::memcpy(packet, &checksum_buffer, CHECKSUM_SIZE);
+                    std::memcpy(packet+CHECKSUM_SIZE, &packet_count_buffer, PACKET_COUNT_SIZE);
+                    std::memcpy(packet+HEADER_SIZE, &data_buffer, DATA_SIZE);
 
                     // Send packet to client
                     sendto(sd, packet, SEGMENT_SIZE, 0, (struct sockaddr *)&server, sizeof(server));
 
-                    empty_buffer(packet, SEGMENT_SIZE);
-                    empty_buffer(data_buffer, DATA_SIZE);
+                    // Sleep in the event of packet overflow
+                    usleep(100);
                 }
 
                 sendto(sd, "\0", 1, 0, (struct sockaddr *)&server, sizeof(server));
 
             } else {
 
-                std::cout << "[Error] Recieved request for file " << target_filename << " that does not exist" << std::endl;
+                std::cout << "[Error] Received request for file " << target_filename << " that does not exist" << std::endl;
                 sendto(sd, ERR_INSTR, 4, 0, (struct sockaddr*)&server, sizeof(server));
 
             }
@@ -158,7 +155,7 @@ void empty_buffer(char buffer[], int size) {
 
 
 void generate_packet_num(uint32_t packet_num, char packet_num_buffer[]) {
-    std::cout << "Packet Number: " << packet_num << std::endl;
+    std::cout << "Generated Packet Number: " << packet_num << std::endl;
     memcpy(packet_num_buffer, &packet_num, sizeof(packet_num));
 }
 
@@ -168,6 +165,6 @@ void generate_checksum(char data_buffer[], char checksum_buffer[]) {
     for(int i = 0; i < DATA_SIZE; i++) {
         sum += data_buffer[i];
     }
-    std::cout << "Checksum: " << sum << std::endl;
+    std::cout << "Generated Checksum: " << sum << std::endl;
     memcpy(checksum_buffer, &sum, sizeof(sum));
 }
