@@ -5,12 +5,14 @@
 #include <string>
 #include <cstring>
 #include <tuple>
+#include <bits/stdc++.h>
 
 int SEGMENT_SIZE = 512;
+int TERMINATOR_BYTE = 1;
 int CHECKSUM_SIZE = 4;
 int PACKET_COUNT_SIZE = 4;
-int INSTRUCTION_SIZE = 4;
-int HEADER_SIZE = CHECKSUM_SIZE + PACKET_COUNT_SIZE;
+int INSTRUCTION_SIZE = 3;
+int HEADER_SIZE = TERMINATOR_BYTE + CHECKSUM_SIZE + PACKET_COUNT_SIZE;
 int DATA_SIZE = SEGMENT_SIZE - HEADER_SIZE;
 
 char GET_INSTR[4] = "GET";
@@ -47,12 +49,12 @@ int main(int argc, char **argv) {
     std::string input_filename;
     std::ofstream downloaded_file;
 
-    char file_data_buffer[DATA_SIZE] = {};
-    char packet_instruction[INSTRUCTION_SIZE] = {};
+    char file_data_buffer[DATA_SIZE];
+    char packet_instruction[INSTRUCTION_SIZE];
 
-    char packet_calculated_checksum_buff[CHECKSUM_SIZE] = {};
-    char packet_checksum_buff[CHECKSUM_SIZE] = {};
-    char packet_number_buff[PACKET_COUNT_SIZE] = {};
+    char packet_calculated_checksum_buff[CHECKSUM_SIZE];
+    char packet_checksum_buff[CHECKSUM_SIZE];
+    char packet_number_buff[PACKET_COUNT_SIZE];
 
     std::string input_packet_loss_rate;
     std::string input_packet_damage_rate;
@@ -72,7 +74,7 @@ int main(int argc, char **argv) {
         std::getline(std::cin, input_packet_damage_rate);
         packet_damage_rate = std::stof(input_packet_damage_rate);
 
-        char packet[SEGMENT_SIZE] = {};
+        char packet[SEGMENT_SIZE];
         
         //populate "packet" with GET and the file name
         strcpy(packet, GET_INSTR);
@@ -91,7 +93,8 @@ int main(int argc, char **argv) {
         if (strcmp(packet_instruction, ACK_INSTR) == 0) {
             
             // File exists
-            downloaded_file.open("recv_" + input_filename);
+            std::string downloaded_filename = input_filename.substr(input_filename.find_last_of("/\\") + 1);
+            downloaded_file.open(downloaded_filename);
 
             empty_buffer(message_buffer, SEGMENT_SIZE);
 
@@ -106,8 +109,8 @@ int main(int argc, char **argv) {
                     }
 
                     // Determine the checksum and packet number values
-                    std::memcpy(packet_checksum_buff, &message_buffer[0], 4);
-                    std::memcpy(packet_number_buff, &message_buffer[4], 4);
+                    std::memcpy(packet_checksum_buff, &message_buffer[1], 4);
+                    std::memcpy(packet_number_buff, &message_buffer[5], 4);
 
                     uint32_t packet_number = buffToUint32(packet_number_buff);
                     uint32_t packet_checksum = buffToUint32(packet_checksum_buff); 
@@ -117,7 +120,7 @@ int main(int argc, char **argv) {
 
 
                     // Get the raw file data from the message buffer
-                    std::memcpy(file_data_buffer, &message_buffer[8], 504);
+                    std::memcpy(file_data_buffer, &message_buffer[9], 503);
                     file_data_buffer[DATA_SIZE] = '\0';
 
                     size_t len = strlen(file_data_buffer);
@@ -133,6 +136,8 @@ int main(int argc, char **argv) {
                         std::cout << "[Error] Packet Damaged" << std::endl;
                         std::cout << "\tRecieved: " << actual_checksum << std::endl;
                         std::cout << "\tExpected: " << packet_checksum << std::endl;
+                    } else {
+                        std::cout << "[Info] Packet contents OK" << std::endl;
                     }
 
                     // Generate our packet tuple from the incoming packet
@@ -141,8 +146,6 @@ int main(int argc, char **argv) {
 
                     // Append the packet tuple to our vector of file data
                     file_data_vector.push_back(packet_tuple);
-
-                    downloaded_file.write(newBuf, len);
 
                     empty_buffer(message_buffer, 4);
                     empty_buffer(packet_calculated_checksum_buff, 4);
@@ -154,15 +157,28 @@ int main(int argc, char **argv) {
             }
             
             std::cout << "[Info] Terminator packet received, end of transmission" << std::endl;
-            std::cout << "[Info] Downloaded file written to: " << "recv_" + input_filename << std::endl;
 
+            std::cout << "[Info] Sorting recieved packet data..." << std::endl;
+
+            std::sort(file_data_vector.begin(), file_data_vector.end());
+
+            std::cout << "[Info] Writing file data..." << std::endl;
+
+            for (int i = 0; i< file_data_vector.size(); i++) {
+                std::vector<char> data = std::get<1>(file_data_vector[i]);
+                downloaded_file.write(&data[0], data.size());
+            }
+            
             downloaded_file.close();
+
+            std::cout << "[Info] Downloaded file written to: " << downloaded_filename << std::endl;
             
         } else {
             std::cout << "[Error] File name does not exist on server, please try again" << std::endl;
         }
 
         empty_buffer(file_data_buffer, 504);
+        empty_buffer(packet, SEGMENT_SIZE);
     }
 
     return 0;
@@ -184,6 +200,7 @@ void empty_buffer(char buffer[], int size) {
 void generate_checksum(char data_buffer[], char checksum_buffer[]) {
     uint32_t sum = 0;
     for(int i = 0; i < DATA_SIZE; i++) {
+        if (data_buffer[i] == '\0') break;
         sum += data_buffer[i];
     }
     //std::cout << "Checksum: " << sum << std::endl;

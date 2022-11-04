@@ -7,12 +7,14 @@
 #include <unistd.h>
 
 int SEGMENT_SIZE = 512;
+int TERMINATOR_BYTE = 1;
 int CHECKSUM_SIZE = 4;
 int PACKET_COUNT_SIZE = 4;
 int INSTRUCTION_SIZE = 3;
-int HEADER_SIZE = CHECKSUM_SIZE + PACKET_COUNT_SIZE;
+int HEADER_SIZE = TERMINATOR_BYTE + CHECKSUM_SIZE + PACKET_COUNT_SIZE;
 int DATA_SIZE = SEGMENT_SIZE - HEADER_SIZE;
 
+char TERM_OKAY = '1';
 char GET_INSTR[4] = "GET";
 char ACK_INSTR[4] = "ACK";
 char ERR_INSTR[4] = "ERR";
@@ -54,25 +56,25 @@ int main() {
     int packet_count = 0;
     
     // Define char buffers  based on our segment size
-    char data_buffer[DATA_SIZE] = {};
+    char data_buffer[DATA_SIZE];
     
     // Define an empty buffer for our generated checksum
-    char checksum_buffer[CHECKSUM_SIZE] = {};
+    char checksum_buffer[CHECKSUM_SIZE];
 
     // Define an empty buffer for our generated checksum
-    char packet_count_buffer[PACKET_COUNT_SIZE] = {};   
+    char packet_count_buffer[PACKET_COUNT_SIZE];   
 
     // Define our empty packet
-    char packet[SEGMENT_SIZE] = {};
+    char packet[SEGMENT_SIZE];
 
     // Define our buffer to store our incoming message
-    char message_buffer[SEGMENT_SIZE] = {};
+    char message_buffer[SEGMENT_SIZE];
 
     // Define a buffer to store the GET instruction of the message 
-    char instruction_buffer[4] = {};
+    char instruction_buffer[4];
 
     // Define a buffer to store the filename passed in the GET packet
-    char filename_buffer[SEGMENT_SIZE - INSTRUCTION_SIZE] = {};
+    char filename_buffer[SEGMENT_SIZE - INSTRUCTION_SIZE];
 
     // Input string to open
     std::string input_name;
@@ -112,8 +114,9 @@ int main() {
                     generate_checksum(data_buffer, checksum_buffer);
                     generate_packet_num(++packet_count, packet_count_buffer);
 
-                    std::memcpy(packet, &checksum_buffer, CHECKSUM_SIZE);
-                    std::memcpy(packet+CHECKSUM_SIZE, &packet_count_buffer, PACKET_COUNT_SIZE);
+                    std::memcpy(packet, &TERM_OKAY, TERMINATOR_BYTE);    
+                    std::memcpy(packet+TERMINATOR_BYTE, &checksum_buffer, CHECKSUM_SIZE);
+                    std::memcpy(packet+TERMINATOR_BYTE+CHECKSUM_SIZE, &packet_count_buffer, PACKET_COUNT_SIZE);
                     std::memcpy(packet+HEADER_SIZE, &data_buffer, DATA_SIZE);
 
                     // Send packet to client
@@ -163,6 +166,7 @@ void generate_packet_num(uint32_t packet_num, char packet_num_buffer[]) {
 void generate_checksum(char data_buffer[], char checksum_buffer[]) {
     uint32_t sum = 0;
     for(int i = 0; i < DATA_SIZE; i++) {
+        if (data_buffer[i] == '\0') break;
         sum += data_buffer[i];
     }
     std::cout << "Generated Checksum: " << sum << std::endl;
